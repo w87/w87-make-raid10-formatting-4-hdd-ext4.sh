@@ -8,31 +8,32 @@
 
 ## Step-by-step behavior
 
-- **Privilege check**: Exits unless run as root.
+- **Privilege check**: Executing a step requires root; help and argument validation are available without root.
 - **Help / usage**: If no argument or `-h`/`--help` is passed, prints usage, step descriptions, and script metadata (author, license).
-- **step1 — Wipe disks**: For sda, sdb, sdc, sdd:
+- **Step selection**: Start with `NUMBER`, `--step NUMBER`, or `-s NUMBER` (1–7). After each step, enter a number, `n` for the next step, `p` for the previous step, or `q` to quit. End-of-input also exits.
+- **Step 1 — Wipe disks**: For sda, sdb, sdc, sdd:
   - Runs `wipefs -a $disk` to clear filesystem signatures.
   - Runs `mdadm --zero-superblock $disk` to remove RAID metadata.
-- **step2 — Create partitions**:
+- **Step 2 — Create partitions**:
   - Uses `parted -s $disk mklabel gpt` to create a GPT label.
   - Creates a single primary partition spanning the whole disk: `parted -s $disk mkpart primary 0% 100%`.
   - Flags the partition as RAID with `parted -s $disk set 1 raid on`.
   - Shows the created partition device nodes (sda1 ...).
-- **step3 — Create RAID10**:
+- **Step 3 — Create RAID10**:
   - Runs `mdadm --create /dev/md0 --level=10 --raid-devices=4 --layout=n2 --bitmap=internal /dev/sd[a-d]1` to build a 4-device RAID10 using layout n2 and internal bitmap.
   - Polls `mdadm --detail /dev/md0` and mdstat until the array becomes active.
-- **step4 — Format and mount**:
+- **Step 4 — Format and mount**:
   - Formats `/dev/md0` with `mkfs.ext4` using: label `www`, `-E stride=128,stripe-width=256`, `-O dir_index,filetype`, and `-m 0` (0% reserved).
   - If www exists, moves it to `/var/www_backup`, creates www, then mounts `/dev/md0` there with `noatime,nodiratime,commit=60`.
-- **step5 — Make persistent**:
+- **Step 5 — Make persistent**:
   - Appends `mdadm --detail --scan` output to `/etc/mdadm/mdadm.conf`.
   - Runs `update-initramfs -u`.
   - Shows `/etc/mdadm/mdadm.conf`, runs `blkid /dev/md0` to show UUID, then appends an fstab entry using the UUID to mount www with the same mount options.
-- **step6 — Final check and status**:
+- **Step 6 — Final check and status**:
   - Runs `mount -a`, shows `mdadm --detail /dev/md0` and `df -h`.
   - Enables/starts `smartd` (or `smartmontools.service`) and shows its status.
   - Runs `smartctl -a` on each disk to display SMART data.
-- **step7 — Read-ahead tuning**:
+- **Step 7 — Read-ahead tuning**:
   - Shows current read-ahead: `blockdev --getra /dev/md0`.
   - Sets read-ahead to `4096` with `blockdev --setra 4096 /dev/md0`.
   - Writes a udev rule `99-md0-read-ahead.rules` to set `ATTR{bdi/read_ahead_kb}="2048"` for `md0`, reloads udev, triggers it, and re-reads the value.
@@ -53,18 +54,18 @@
 - Confirm device-to-disk mapping:
   - `lsblk -o NAME,KNAME,SIZE,MODEL,WWN,MOUNTPOINT` and verify which physical drives correspond to `/dev/sdX`.
 - Back up any data on the disks.
-- Run the script step-by-step (e.g., `.w87-make-raid10-formatting-4-hdd-ext4.sh step1`, inspect, then continue).
+- Run the script step-by-step (e.g., `sudo ./w87-make-raid10-formatting-4-hdd-ext4.sh --step 1`), inspect each result, then choose whether to continue.
 - Consider editing the script to:
   - Use a configurable device list variable instead of hardcoded `/dev/sd{a,b,c,d}`.
   - Check return codes and bail on failures.
   - Prevent duplicate entries when appending to fstab and `/etc/mdadm/mdadm.conf`.
 
 ## License
-**CC BY-SA 4.0** — [ATTRIBUTION-SHAREALIKE 4.0 INTERNATIONAL](https://creativecommons.org/licenses/by-sa/4.0/) (also in LICENSE.md).
+**GPL-3.0** — [GNU General Public License v3.0](https://w87.eu/gpl-3.0.html) (also in LICENSE.md).
 
 ### You are free to:
 * Share — copy and redistribute the material in any medium or format for any purpose, even commercially.
-* Adapt — remix, transform, and build upon the material for any purpose, even commercially.
+* Adapt — change, and build upon the material for any purpose, even commercially.
 * The licensor cannot revoke these freedoms as long as you follow the license terms.
 ### Under the following terms:
 * Attribution — You must give appropriate credit , provide a link to the license, and indicate if changes were made . You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
